@@ -2,9 +2,21 @@
 # Madara 6DoF Arm — Docker image
 # Base: osrf/ros:humble-desktop-full (Ubuntu 22.04 + ROS2 Humble + Gazebo Fortress)
 # Camera: camera_ros (libcamera backend) — correct for Raspberry Pi 5 + IMX219
+# Arch:   auto-detected via BuildKit TARGETPLATFORM (amd64 / arm64 / arm/v7)
 # ═══════════════════════════════════════════════════════════════════════════
 
-FROM osrf/ros:humble-desktop-full
+# BuildKit automatically sets TARGETPLATFORM to the host's native arch
+# (or to whatever --platform flag you pass at build time).
+# Declaring it here promotes it to a FROM-scoped ARG.
+ARG TARGETPLATFORM
+ARG TARGETARCH
+ARG TARGETVARIANT
+
+FROM --platform=${TARGETPLATFORM} osrf/ros:humble-desktop-full
+
+# Re-declare after FROM so later RUN steps can read them if needed
+ARG TARGETARCH
+ARG TARGETVARIANT
 
 # ── System + ROS packages ──────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
