@@ -1,0 +1,15 @@
+# Initial positions for madara_6DoF_arm ros2_control
+#
+# top_plate_joint  : DC motor (JGA25-371). Encoder is reset to 0 on Arduino boot.
+# lower_arm_joint  : MG966R servo held at pi/2 (90 deg, arm vertical).
+#                    Physical homing must be done manually before power-on.
+# All servo joints : open-loop position (no encoder feedback).
+
+initial_positions:
+  top_plate_joint:  0.0000   # DC motor home — encoder zeroed by Arduino at startup
+  lower_arm_joint:  1.5708   # 90 deg — arm vertical, stall-held by servo torque
+  upper_arm_joint:  0.0000
+  wrist_joint:      0.0000
+  claw_base_joint:  0.0000
+  right_claw_joint: 0.0000
+  left_claw_joint:  0.0000

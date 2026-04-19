@@ -1,0 +1,266 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:include filename="inertial_macros.xacro"/>
+
+  <!-- World link -->
+  <link name="world"/>
+
+  <joint name="fixed" type="fixed">
+    <parent link="world"/>
+    <child link="base_link"/>
+  </joint>
+
+  <link name="base_link"/>
+
+  <joint name="base_plate_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="base_plate"/>
+    <origin xyz="0 0 0"/>
+  </joint>
+
+  <!-- Base plate -->
+  <link name="base_plate">
+    <visual>
+      <origin xyz="0 0 0.001"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/base_cylinder.stl"
+              scale="0.00001 0.00001 0.00001"/>
+      </geometry>
+      <material name="black"><color rgba="0 0 0 1"/></material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.001"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/base_cylinder.stl"
+              scale="0.00001 0.00001 0.00001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.527" length="0.215" width="0.112" height="0.052">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       JOINT 0 — top_plate_joint
+       Type     : continuous  (was revolute)
+       Actuator : JGA25-371 DC 12V 18 RPM with quadrature encoder
+       Control  : Incremental PID on Arduino Uno → position target via UART
+       MoveIt   : soft limits ±10 rad set in joint_limits.yaml
+       URDF     : continuous has no lower/upper, only effort + velocity
+       ═══════════════════════════════════════════════════════════════════ -->
+  <joint name="top_plate_joint" type="continuous">
+    <parent link="base_plate"/>
+    <child link="top_plate"/>
+    <origin rpy="0 0 1.5" xyz="0 0 0.048"/>
+    <axis xyz="0 0 1"/>
+    <!-- JGA25-371 @ 12V: stall torque ~0.8 Nm, no-load speed ~1.88 rad/s -->
+    <limit effort="1.0" velocity="2.0"/>
+  </joint>
+
+  <!-- Top plate -->
+  <link name="top_plate">
+    <visual>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/top_plate.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/top_plate.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:cylinder_inertia mass="0.115" length="0.002" radius="0.055">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:cylinder_inertia>
+  </link>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       JOINT 1 — lower_arm_joint
+       Type     : revolute (kept, open-loop servo MG966R)
+       Strategy : commanded to pi/2 (90 deg) at startup via MoveIt2
+                  and held there by servo torque for the whole task.
+       ═══════════════════════════════════════════════════════════════════ -->
+  <joint name="lower_arm_joint" type="revolute">
+    <parent link="top_plate"/>
+    <child link="lower_arm"/>
+    <origin xyz="0 0.019 0.028"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="1000.0" lower="0.0" upper="3.12" velocity="1.0"/>
+  </joint>
+
+  <link name="lower_arm">
+    <visual>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/lower_arm.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/lower_arm.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.047" length="0.13" width="0.056" height="0.025">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- JOINT 2 — upper_arm_joint (MG966R servo) -->
+  <joint name="upper_arm_joint" type="revolute">
+    <parent link="lower_arm"/>
+    <child link="upper_arm"/>
+    <origin xyz="-0.025 0.1 0"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="1000.0" lower="-1.7" upper="1.7" velocity="1.0"/>
+  </joint>
+
+  <link name="upper_arm">
+    <visual>
+      <origin rpy="0 1.59 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/upper_arm.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin rpy="0 1.59 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/upper_arm.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.105" length="0.185" width="0.036" height="0.025">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- JOINT 3 — wrist_joint (MG966R servo) -->
+  <joint name="wrist_joint" type="revolute">
+    <parent link="upper_arm"/>
+    <child link="wrist"/>
+    <origin xyz="0.011 0.125 0"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="1000.0" lower="-1.7" upper="1.7" velocity="1.0"/>
+  </joint>
+
+  <link name="wrist">
+    <visual>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/wrist.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="black"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/wrist.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.082" length="0.065" width="0.057" height="0.025">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- JOINT 4 — claw_base_joint (MG966R servo) -->
+  <joint name="claw_base_joint" type="revolute">
+    <axis xyz="0 1 0"/>
+    <limit effort="1000.0" lower="-3.17" upper="0.0" velocity="1.0"/>
+    <parent link="wrist"/>
+    <child link="claw_base"/>
+    <origin xyz="0 0.063 0"/>
+  </joint>
+
+  <link name="claw_base">
+    <visual>
+      <origin rpy="0 3.18 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/claw_base.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="white"><color rgba="1 1 1 1"/></material>
+    </visual>
+    <collision>
+      <origin rpy="0 3.18 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/claw_base.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.079" length="0.07" width="0.05" height="0.015">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- JOINT 5 — right_claw_joint (MG966R servo, gripper) -->
+  <joint name="right_claw_joint" type="revolute">
+    <parent link="claw_base"/>
+    <child link="right_claw"/>
+    <origin rpy="0 0 -0.31" xyz="0.011 0.0335 0.00155"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1000.0" lower="-0.5" upper="0.0" velocity="1.0"/>
+  </joint>
+
+  <link name="right_claw">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/right_claw.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/right_claw.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.019" length="0.1" width="0.01" height="0.012">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!-- JOINT 6 — left_claw_joint (mimic of right_claw, no separate actuator) -->
+  <link name="left_claw">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/left_claw.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+      <material name="white"/>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://madara_description/meshes/left_claw.stl"
+              scale="0.0001 0.0001 0.0001"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.019" length="0.1" width="0.01" height="0.012">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <joint name="left_claw_joint" type="revolute">
+    <parent link="claw_base"/>
+    <child link="left_claw"/>
+    <origin rpy="0 0 0.22" xyz="-0.016 0.030 0"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="1000.0" lower="0.0" upper="0.5" velocity="1.0"/>
+    <mimic joint="right_claw_joint" multiplier="-1" offset="0"/>
+  </joint>
+
+</robot>

@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<!-- Fake (mock_components) URDF for MoveIt2 demo / offline planning.
+     No real hardware required. Joints are simulated by mock_components/GenericSystem. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="madara">
+
+  <xacro:include filename="$(find madara_description)/urdf/madara.urdf.xacro"/>
+  <xacro:include filename="$(find madara_description)/urdf/madara.ros2_control.xacro"/>
+
+  <xacro:madara_ros2_control
+    name="MadaraFakeSystem"
+    plugin_name="mock_components/GenericSystem"/>
+
+</robot>

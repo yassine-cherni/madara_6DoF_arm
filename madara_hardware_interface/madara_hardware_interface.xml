@@ -1,0 +1,13 @@
+<library path="madara_hardware_interface">
+  <class
+    name="madara_hardware_interface/MadaraUARTSystem"
+    type="madara_hardware_interface::MadaraUARTSystem"
+    base_class_type="hardware_interface::SystemInterface">
+    <description>
+      UART hardware interface for the Madara 6-DoF robotic arm.
+      Talks to Arduino Uno at 115200 baud using a 17-byte CMD / 11-byte STA
+      binary framed protocol. DC motor feedback via quadrature encoder;
+      servo joints are open-loop (state = echo of last command).
+    </description>
+  </class>
+</library>

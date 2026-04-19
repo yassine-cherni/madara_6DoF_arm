@@ -1,0 +1,58 @@
+# ── Controller Manager ──────────────────────────────────────────────────────
+controller_manager:
+  ros__parameters:
+    update_rate: 100    # Hz — must be >= Arduino PID rate (also 100 Hz)
+
+    madara_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+    hand_controller:
+      type: position_controllers/GripperActionController
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+
+# ── Arm trajectory controller ────────────────────────────────────────────────
+# Controls: top_plate (DC motor) + lower_arm + upper_arm + wrist + claw_base
+#
+# state_interfaces includes velocity because ALL 5 joints now export a
+# velocity state interface (see madara.ros2_control.xacro + madara_uart_system.cpp).
+# DC motor: real velocity from encoder.  Servos: 0.0 rad/s (open-loop).
+# JointTrajectoryController on Humble requests the same set of state interfaces
+# from every joint it manages — if any joint is missing velocity, the controller
+# manager refuses to activate the entire controller.
+madara_arm_controller:
+  ros__parameters:
+    joints:
+      - top_plate_joint     # DC motor (continuous, encoder-backed)
+      - lower_arm_joint     # MG966R — hold at 1.5708 rad at startup
+      - upper_arm_joint     # MG966R
+      - wrist_joint         # MG966R
+      - claw_base_joint     # MG966R
+
+    command_interfaces:
+      - position
+
+    state_interfaces:
+      - position
+      - velocity
+
+    # Tolerances — relaxed because servo state echoes last command (open-loop).
+    # stopped_velocity_tolerance: servos report 0.0, so this always passes.
+    # goal_time: 0.0 disables the goal-time deadline check entirely.
+    constraints:
+      stopped_velocity_tolerance: 0.05
+      goal_time: 0.0
+
+
+# ── Gripper action controller ────────────────────────────────────────────────
+# GripperActionController needs position command + position state from right_claw.
+# right_claw_joint provides both (open-loop servo, state = echo of command).
+hand_controller:
+  ros__parameters:
+    joint: right_claw_joint
+    action_monitor_rate: 20.0
+    allow_stalling: true
+    stall_velocity_threshold: 0.001
+    stall_timeout: 1.0

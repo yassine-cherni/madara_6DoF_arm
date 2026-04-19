@@ -1,0 +1,133 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       Raspberry Pi Camera Module v2  (Sony IMX219, 8 MP)
+       ───────────────────────────────────────────────────────────────────
+       Mount    : Front face of base_plate, elevated above the plate top
+       Looking  : Forward (+X robot frame) with 20° downward tilt
+                  → sees the table/workspace in front of the arm
+       Purpose  : ArUco marker detection, pick-and-place object detection
+
+       base_plate dims  (from box_inertia): 215 × 112 × 52 mm
+       Camera box dims  (PCB):              25  × 24  × 9  mm
+
+       Joint origin:
+         x =  0.095   front edge of base plate (~half of 215mm cylinder radius)
+         y =  0.000   centered
+         z =  0.060   6 mm above top face of base plate (52mm + 8mm clearance)
+         R =  0        no roll
+         P =  0.349   20° downward pitch (tilts lens toward workspace table)
+         Y =  0        no yaw
+
+       Optical frame:
+         Standard ROS optical convention — Z forward, X right, Y down.
+         Achieved by rpy="${-pi/2} 0 ${-pi/2}" on camera_optical_joint.
+
+       Real hardware vs Gazebo:
+         This file defines TF frames ONLY for real hardware.
+         The <gazebo> sensor block fires only in simulation (Ignition Fortress).
+         Real images come from the camera_ros node (libcamera) — see
+         madara_bringup/launch/camera_launch.py
+       ═══════════════════════════════════════════════════════════════════ -->
+
+  <link name="camera_link">
+    <visual>
+      <!-- PCB box: 25mm (X, depth into base) × 24mm (Y, width) × 9mm (Z, height) -->
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.009 0.025 0.024"/>
+        <!--       ^      ^      ^
+                depth  width  height
+                (X)    (Y)    (Z)
+             camera depth=9mm along X (into/out of base front face)
+        -->
+      </geometry>
+      <material name="rpi_cam_green">
+        <color rgba="0.08 0.45 0.08 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.009 0.025 0.024"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia mass="0.003" length="0.009" width="0.025" height="0.024">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:box_inertia>
+  </link>
+
+  <!--
+    Camera mount: front of base_plate, above top face, 20° nose-down tilt.
+    Tune xyz here if the real camera position differs:
+      - Increase x if camera is further forward
+      - Increase z if camera is mounted higher
+      - Increase P (pitch) for more downward tilt toward table
+  -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_plate"/>
+    <child link="camera_link"/>
+    <origin xyz="0.095 0.0 0.060" rpy="0 -0.175 0"/>
+    <!--              ^    ^  ^        ^ ^
+                      |    |  |        | 20° down pitch (0.349 rad)
+                      |    |  z=60mm above base_plate origin
+                      |    y=0  centered
+                      x=95mm forward (front face of base) -->
+  </joint>
+
+  <!-- Optical frame: Z forward, X right, Y down (standard ROS image convention) -->
+  <link name="camera_link_optical"/>
+
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_link_optical"/>
+    <!-- This rotation converts from ROS body frame (Z up, X forward)
+         to ROS optical frame (Z forward, X right, Y down).
+         Do NOT change this unless you fully understand optical frame conventions. -->
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       GAZEBO SIMULATION SENSOR (Ignition Fortress)
+       ──────────────────────────────────────────────────────────────────
+       This block is completely ignored on real hardware.
+       In simulation, Ignition publishes natively on the gz topic,
+       and ros_gz_image in gz_launch.py bridges it to /camera/image_raw
+       ══════════════════════════════════════════════════════════════════ -->
+  <xacro:property name="rpi_v2_hfov_deg" value="62.2"/>
+  <xacro:property name="deg_to_rad"      value="0.01745329252"/>
+
+  <gazebo reference="camera_link">
+    <sensor name="rpi_v2_camera" type="camera">
+      <!-- Sensor pose relative to camera_link.
+           The 20° tilt is already baked into the joint above,
+           so sensor pose here stays at zero. -->
+      <pose>0 0 0 0 0 0</pose>
+      <always_on>1</always_on>
+      <update_rate>30</update_rate>
+      <visualize>false</visualize>
+      <!-- Native Ignition topic — bridged by ros_gz_image node in gz_launch.py -->
+      <topic>camera/image_raw</topic>
+      <camera name="rpi_v2_camera">
+        <!-- RPi Camera v2 real spec: 62.2° horizontal FOV -->
+        <horizontal_fov>${rpi_v2_hfov_deg * deg_to_rad}</horizontal_fov>
+        <image>
+          <format>R8G8B8</format>
+          <width>1280</width>
+          <height>720</height>
+        </image>
+        <clip>
+          <near>0.02</near>  <!-- 2 cm minimum — arm won't get closer -->
+          <far>2.0</far>     <!-- 2 m max — enough for a table workspace -->
+        </clip>
+        <noise>
+          <type>gaussian</type>
+          <mean>0.0</mean>
+          <stddev>0.007</stddev>
+        </noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+</robot>

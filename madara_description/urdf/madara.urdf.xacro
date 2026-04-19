@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<robot name="madara" xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!-- Base URDF — geometry + sensors only, no ros2_control.
+       Included by:  real_madara.urdf.xacro  (UART hardware)
+                     madara_gz.urdf.xacro     (Gazebo/Ignition)
+                     madara_moveit_config/urdf/fake_madara.urdf.xacro (mock) -->
+
+  <xacro:include filename="madara_core.xacro"/>
+  <xacro:include filename="rpi_v2_camera.xacro"/>
+
+</robot>

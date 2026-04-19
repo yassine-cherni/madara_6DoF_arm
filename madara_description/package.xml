@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+            schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>madara_description</name>
+  <version>0.1.0</version>
+  <description>
+    Madara 6-DoF Arm Description.
+    Actuators: 1x JGA25-371 DC motor  (top_plate_joint, continuous, encoder+PID on Arduino Uno)
+               5x MG966R servos       (lower_arm, upper_arm, wrist, claw_base, right_claw)
+    Sensor:    Raspberry Pi Camera Module v2 (fixed on base_plate, box geometry)
+    Comms:     UART — RPi 5 to Arduino Uno via madara_hardware_interface
+  </description>
+  <maintainer email="cherniyassine@gomyrobot.com">Yassine Cherni</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <depend>urdf</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+    <gazebo_ros gazebo_model_path="${prefix}/.." />
+  </export>
+</package>

@@ -1,0 +1,79 @@
+<?xml version="1.0" ?>
+<robot name="madara">
+
+  <!-- ── Planning groups ────────────────────────────────────────────────
+       madara_arm : 6-DOF chain (DC motor + 5 servos), tip = claw_base
+       hand       : gripper (right_claw_joint only)                      -->
+
+  <group name="madara_arm">
+    <chain base_link="base_link" tip_link="claw_base"/>
+  </group>
+
+  <group name="hand">
+    <link name="left_claw"/>
+    <link name="right_claw"/>
+    <joint name="left_claw_joint"/>
+    <joint name="right_claw_joint"/>
+  </group>
+
+  <!-- ── Named states ───────────────────────────────────────────────── -->
+  <group_state name="home" group="madara_arm">
+    <joint name="top_plate_joint"  value="0.0"/>
+    <joint name="lower_arm_joint"  value="1.5708"/>
+    <joint name="upper_arm_joint"  value="1.7"/>
+    <joint name="wrist_joint"      value="-1.7"/>
+    <joint name="claw_base_joint"  value="0.0"/>
+  </group_state>
+
+  <group_state name="reach" group="madara_arm">
+    <joint name="top_plate_joint"  value="0.0"/>
+    <joint name="lower_arm_joint"  value="1.5708"/>
+    <joint name="upper_arm_joint"  value="0.5"/>
+    <joint name="wrist_joint"      value="-0.5"/>
+    <joint name="claw_base_joint"  value="-1.5"/>
+  </group_state>
+
+  <group_state name="open" group="hand">
+    <joint name="right_claw_joint" value="0.0"/>
+  </group_state>
+  <group_state name="closed" group="hand">
+    <joint name="right_claw_joint" value="-0.5"/>
+  </group_state>
+
+  <!-- ── End effectors ──────────────────────────────────────────────── -->
+  <end_effector name="gripper" parent_link="claw_base" group="hand"/>
+
+  <!-- ── Virtual joint: anchors robot base to the world frame ──────── -->
+  <!-- Required for MoveIt planning scene — same pattern as akabot.    -->
+  <virtual_joint name="virtual_joint" type="fixed"
+                 parent_frame="world" child_link="base_link"/>
+
+  <!-- ── Passive joints (mimic, not planned) ───────────────────────── -->
+  <passive_joint name="left_claw_joint"/>
+
+  <!-- ── Collision exclusions ──────────────────────────────────────── -->
+  <disable_collisions link1="base_link"    link2="base_plate"   reason="Adjacent"/>
+  <disable_collisions link1="base_plate"   link2="top_plate"    reason="Adjacent"/>
+  <disable_collisions link1="top_plate"    link2="lower_arm"    reason="Adjacent"/>
+  <disable_collisions link1="lower_arm"    link2="upper_arm"    reason="Adjacent"/>
+  <disable_collisions link1="upper_arm"    link2="wrist"        reason="Adjacent"/>
+  <disable_collisions link1="wrist"        link2="claw_base"    reason="Adjacent"/>
+  <disable_collisions link1="claw_base"    link2="right_claw"   reason="Adjacent"/>
+  <disable_collisions link1="claw_base"    link2="left_claw"    reason="Adjacent"/>
+  <disable_collisions link1="right_claw"   link2="left_claw"    reason="Default"/>
+  <disable_collisions link1="base_plate"   link2="camera_link"  reason="Adjacent"/>
+  <disable_collisions link1="base_link"    link2="camera_link"  reason="Never"/>
+  <disable_collisions link1="top_plate"    link2="camera_link"  reason="Never"/>
+  <disable_collisions link1="base_link"    link2="top_plate"    reason="Never"/>
+  <disable_collisions link1="base_link"    link2="lower_arm"    reason="Never"/>
+  <disable_collisions link1="base_plate"   link2="lower_arm"    reason="Never"/>
+  <disable_collisions link1="base_plate"   link2="upper_arm"    reason="Never"/>
+  <disable_collisions link1="left_claw"    link2="lower_arm"    reason="Never"/>
+  <disable_collisions link1="left_claw"    link2="upper_arm"    reason="Never"/>
+  <disable_collisions link1="left_claw"    link2="wrist"        reason="Never"/>
+  <disable_collisions link1="right_claw"   link2="lower_arm"    reason="Never"/>
+  <disable_collisions link1="right_claw"   link2="upper_arm"    reason="Never"/>
+  <disable_collisions link1="right_claw"   link2="wrist"        reason="Never"/>
+  <disable_collisions link1="claw_base"    link2="upper_arm"    reason="Never"/>
+
+</robot>

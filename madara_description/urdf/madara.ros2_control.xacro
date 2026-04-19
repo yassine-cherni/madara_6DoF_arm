@@ -1,0 +1,125 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+
+  <!-- FIX 1: declare serial_port as an overridable xacro argument -->
+  <xacro:arg name="serial_port" default="/dev/ttyAMA0"/>
+
+  <xacro:property name="initial_positions_file"
+    value="$(find madara_description)/config/initial_positions.yaml"/>
+  <xacro:property name="initial_positions"
+    value="${xacro.load_yaml(initial_positions_file)['initial_positions']}"/>
+
+  <xacro:macro name="madara_ros2_control" params="name plugin_name">
+    <ros2_control name="${name}" type="system">
+
+      <hardware>
+        <plugin>${plugin_name}</plugin>
+        <!-- ── UART parameters (consumed by madara_hardware_interface) ──
+             Ignored by mock_components/GenericSystem and IgnitionSystem.
+             FIX 1: serial_port now reads the xacro arg set above.         -->
+        <param name="serial_port">$(arg serial_port)</param>
+        <param name="baud_rate">115200</param>
+        <!-- Number of encoder ticks per full revolution of the DC motor
+             output shaft. JGA25-371 with 18 RPM gearbox:
+             encoder CPR = 11 ppr × 4 (quad) × gear_ratio ≈ 11 × 4 × 34 = 1496
+             Measure yours and update this value.                           -->
+        <param name="dc_encoder_ticks_per_rev">21696</param>
+        <!-- Timeout [ms] before UART is considered stale                   -->
+        <param name="uart_timeout_ms">50</param>
+      </hardware>
+
+      <!-- ── Joint 0: DC motor (top_plate, continuous rotation) ──────────
+           position state  : encoder ticks → rad (real feedback)
+           velocity state  : computed on Arduino (ticks/s → rad/s)
+           command         : target position [rad] sent to incremental PID
+           ──────────────────────────────────────────────────────────────── -->
+      <joint name="top_plate_joint">
+        <command_interface name="position">
+          <param name="min">-10.0</param>
+          <param name="max"> 10.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['top_plate_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ── Joint 1: lower_arm (MG966R, open-loop, held at 90 deg) ──────
+           FIX 2: velocity state added — hardware plugin reports 0.0 rad/s.
+           ──────────────────────────────────────────────────────────────── -->
+      <joint name="lower_arm_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">3.12</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['lower_arm_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ── Joint 2: upper_arm (MG966R, open-loop) ───────────────────── -->
+      <joint name="upper_arm_joint">
+        <command_interface name="position">
+          <param name="min">-1.7</param>
+          <param name="max"> 1.7</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['upper_arm_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ── Joint 3: wrist (MG966R, open-loop) ───────────────────────── -->
+      <joint name="wrist_joint">
+        <command_interface name="position">
+          <param name="min">-1.7</param>
+          <param name="max"> 1.7</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['wrist_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ── Joint 4: claw_base (MG966R, open-loop) ───────────────────── -->
+      <joint name="claw_base_joint">
+        <command_interface name="position">
+          <param name="min">-3.17</param>
+          <param name="max"> 0.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['claw_base_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ── Joint 5: right_claw (MG966R, open-loop, gripper) ─────────── -->
+      <joint name="right_claw_joint">
+        <command_interface name="position">
+          <param name="min">-0.5</param>
+          <param name="max"> 0.0</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['right_claw_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+      <!-- ── Joint 6: left_claw (mimic, no actuator) ───────────────────── -->
+      <joint name="left_claw_joint">
+        <command_interface name="position">
+          <param name="min">0.0</param>
+          <param name="max">0.5</param>
+        </command_interface>
+        <state_interface name="position">
+          <param name="initial_value">${initial_positions['left_claw_joint']}</param>
+        </state_interface>
+        <state_interface name="velocity"/>
+      </joint>
+
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

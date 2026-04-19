@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="madara">
+
+  <xacro:include filename="$(find madara_description)/urdf/madara.urdf.xacro"/>
+  <xacro:include filename="$(find madara_description)/urdf/madara.ros2_control.xacro"/>
+
+  <xacro:madara_ros2_control
+    name="MadaraIgnitionSystem"
+    plugin_name="ign_ros2_control/IgnitionSystem"/>
+
+  <!-- ros2_control plugin -->
+  <gazebo>
+    <plugin filename="ign_ros2_control-system"
+            name="ign_ros2_control::IgnitionROS2ControlPlugin">
+      <parameters>$(find madara_bringup)/config/ros2_controllers.yaml</parameters>
+    </plugin>
+  </gazebo>
+
+  <!-- ✅ ADD THIS: without it Ignition never activates any <sensor> blocks -->
+  <gazebo>
+    <plugin filename="ignition-gazebo-sensors-system"
+            name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+  </gazebo>
+
+</robot>

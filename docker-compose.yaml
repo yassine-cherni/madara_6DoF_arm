@@ -1,0 +1,71 @@
+services:
+
+  # ── Interactive development container ─────────────────────────────────────
+  # Use for: building, real hardware bringup, camera testing, MoveIt2
+  madara:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: madara_arm:humble
+    container_name: madara
+
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+
+    volumes:
+      - .:/madara_project:ro           # whole project root, read-only
+      - madara_ws_build:/madara_ws     # named volume: persists build/install
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev:/dev                      # full device pass-through (camera, UART, DMA)
+
+    network_mode: host
+    ipc: host
+    privileged: true                   # required for /dev/dma_heap/ (libcamera on RPi 5)
+    stdin_open: true
+    tty: true
+
+  # ── Gazebo simulation container ────────────────────────────────────────────
+  # Use for: sim-only testing without real hardware
+  # Start with: docker compose --profile sim up madara-sim
+  madara-sim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: madara_arm:humble
+    container_name: madara-sim
+
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - IGN_GAZEBO_RESOURCE_PATH=/madara_ws/install/madara_description/share
+
+    volumes:
+      - .:/madara_project:ro
+      - madara_ws_build:/madara_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev:/dev
+
+    network_mode: host
+    ipc: host
+    privileged: true
+    stdin_open: true
+    tty: true
+
+    command: >
+      bash -c "
+        source /opt/ros/humble/setup.bash &&
+        source /madara_ws/install/setup.bash &&
+        ros2 launch madara_bringup gz_launch.py
+      "
+
+    profiles:
+      - sim
+
+
+volumes:
+  madara_ws_build:    # persists colcon build across container restarts

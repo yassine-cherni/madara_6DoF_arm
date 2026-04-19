@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+            schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>madara_hardware_interface</name>
+  <version>0.1.0</version>
+  <description>
+    ros2_control hardware plugin for Madara 6-DoF arm.
+    Communicates with Arduino Uno over UART using a compact binary protocol.
+    - Joint 0 (top_plate): DC motor, encoder feedback, full position+velocity state.
+    - Joints 1-5 (servos): open-loop, state echoes last command.
+    - Joint 6 (left_claw): mimic = -right_claw, no actuator.
+  </description>
+  <maintainer email="cherniyassine@gomyrobot.com">Yassine Cherni</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>hardware_interface</depend>
+  <depend>pluginlib</depend>
+  <depend>rclcpp</depend>
+  <depend>rclcpp_lifecycle</depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
