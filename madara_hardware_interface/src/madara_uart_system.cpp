@@ -51,7 +51,7 @@ MadaraUARTSystem::on_init(const hardware_interface::HardwareInfo & info)
     return (it != info_.hardware_parameters.end()) ? it->second : def;
   };
 
-  serial_port_     = get_param("serial_port",               "/dev/ttyAMA0");
+  serial_port_     = get_param("serial_port",               "/dev/ttyACM0");
   baud_rate_       = std::stoi(get_param("baud_rate",        "115200"));
   ticks_per_rev_ = std::stod(get_param("dc_encoder_ticks_per_rev", "21696"));
   uart_timeout_ms_ = std::stoi(get_param("uart_timeout_ms", "50"));

@@ -4,7 +4,7 @@ Starts: ros2_control, controllers, and RPi Camera v2 (v4l2_camera).
 
 Usage:
   ros2 launch madara_bringup bringup_launch.py
-  ros2 launch madara_bringup bringup_launch.py serial_port:=/dev/ttyUSB0
+  ros2 launch madara_bringup bringup_launch.py serial_port:=/dev/ttyACM0
   ros2 launch madara_bringup bringup_launch.py start_camera:=false
   ros2 launch madara_bringup bringup_launch.py video_device:=/dev/video2
 """
@@ -29,8 +29,8 @@ def generate_launch_description():
 
     # ── Launch arguments ─────────────────────────────────────────────────────
     declare_serial = DeclareLaunchArgument(
-        'serial_port', default_value='/dev/ttyAMA0',
-        description='UART device for Arduino Uno (/dev/ttyAMA0 or /dev/ttyUSB0)')
+        'serial_port', default_value='/dev/ttyACM0',
+        description='UART device for Arduino Uno (/dev/ttyACM0 for USB, or /dev/ttyUSB0)')
 
     declare_camera = DeclareLaunchArgument(
         'start_camera', default_value='true',

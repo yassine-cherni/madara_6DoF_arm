@@ -13,6 +13,7 @@ services:
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_SOFTWARE=1
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyACM0}
     volumes:
       - .:/madara_project:ro           # whole project root, read-only
       - madara_ws_build:/madara_ws     # named volume: persists build/install
@@ -39,6 +40,7 @@ services:
       - LIBGL_ALWAYS_SOFTWARE=1
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - IGN_GAZEBO_RESOURCE_PATH=/madara_ws/install/madara_description/share
+      - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyACM0}
     volumes:
       - .:/madara_project:ro
       - madara_ws_build:/madara_ws

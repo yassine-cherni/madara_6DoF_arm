@@ -134,7 +134,7 @@ docker compose --profile sim up madara-sim
 # Terminal 1 — arm controllers + camera
 docker exec -it madara bash
 source install/setup.bash
-ros2 launch madara_bringup bringup_launch.py serial_port:=/dev/ttyUSB0
+ros2 launch madara_bringup bringup_launch.py serial_port:=/dev/ttyACM0
 
 # Terminal 2 — MoveIt2 + RViz (after Terminal 1 shows all controllers active)
 docker exec -it madara bash

@@ -3,7 +3,7 @@
 
 
   <!-- FIX 1: declare serial_port as an overridable xacro argument -->
-  <xacro:arg name="serial_port" default="/dev/ttyAMA0"/>
+  <xacro:arg name="serial_port" default="/dev/ttyACM0"/>
 
   <xacro:property name="initial_positions_file"
     value="$(find madara_description)/config/initial_positions.yaml"/>

@@ -41,7 +41,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # ── Group memberships ──────────────────────────────────────────────────────
-# dialout → UART access (/dev/ttyAMA0, /dev/ttyUSB0)
+# dialout → UART access (/dev/ttyACM0, /dev/ttyUSB0)
 # video   → /dev/video*, /dev/dma_heap/ (camera DMA buffers on RPi 5)
 # render  → /dev/dma_heap/linux,cma (required on RPi 5 for libcamera)
 RUN usermod -aG dialout root 2>/dev/null || true && \

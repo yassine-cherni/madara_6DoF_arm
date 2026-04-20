@@ -6,11 +6,11 @@
 
        FIX: serial_port is now declared here as a top-level xacro arg.
             This is the entry point when bringup_launch.py runs:
-              xacro real_madara.urdf.xacro serial_port:=/dev/ttyAMA0
+              xacro real_madara.urdf.xacro serial_port:=/dev/ttyACM0
             Without this declaration xacro rejects the command-line arg.
             The default matches the arg default in madara.ros2_control.xacro
             so both files agree when no override is given.                 -->
-  <xacro:arg name="serial_port" default="/dev/ttyAMA0"/>
+  <xacro:arg name="serial_port" default="/dev/ttyACM0"/>
 
   <xacro:include filename="$(find madara_description)/urdf/madara.urdf.xacro"/>
   <xacro:include filename="$(find madara_description)/urdf/madara.ros2_control.xacro"/>
