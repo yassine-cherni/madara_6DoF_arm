@@ -15,13 +15,14 @@ services:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
       - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyACM0}
     volumes:
-      - .:/madara_project:ro           # whole project root, read-only
-      - madara_ws_build:/madara_ws     # named volume: persists build/install
+      - .:/madara_project:ro                        # whole project root, read-only
+      - madara_ws_src:/madara_ws/src                # symlinked by entrypoint, stays small
+      - madara_ws_install:/madara_ws/install        # only what ros2 launch needs at runtime
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - /dev:/dev                      # full device pass-through (camera, UART, DMA)
+      - /dev:/dev                                   # full device pass-through (camera, UART, DMA)
     network_mode: host
     ipc: host
-    privileged: true                   # required for /dev/dma_heap/ (libcamera on RPi 5)
+    privileged: true                                # required for /dev/dma_heap/ (libcamera on RPi 5)
     stdin_open: true
     tty: true
 
@@ -43,7 +44,8 @@ services:
       - SERIAL_PORT=${SERIAL_PORT:-/dev/ttyACM0}
     volumes:
       - .:/madara_project:ro
-      - madara_ws_build:/madara_ws
+      - madara_ws_src:/madara_ws/src
+      - madara_ws_install:/madara_ws/install
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /dev:/dev
     network_mode: host
@@ -61,4 +63,5 @@ services:
       - sim
 
 volumes:
-  madara_ws_build:    # persists colcon build across container restarts
+  madara_ws_install:  # ~500MB max — just the install tree, sourced at runtime
+  madara_ws_src:      # tiny — symlinks only if entrypoint uses --symlink-install
