@@ -1,14 +1,11 @@
 services:
   # ── Interactive development container ─────────────────────────────────────
   # Use for: building, real hardware bringup, camera testing, MoveIt2
+  # Base image is multi-arch — no platform args needed, Docker auto-selects
   madara:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        TARGETPLATFORM: ${TARGETPLATFORM:-linux/arm64}
-        TARGETARCH: ${TARGETARCH:-arm64}
-        TARGETVARIANT: ${TARGETVARIANT:-}
     image: madara_arm:humble
     container_name: madara
     environment:
@@ -34,10 +31,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        TARGETPLATFORM: ${TARGETPLATFORM:-linux/amd64}   # sim → likely x86 dev machine
-        TARGETARCH: ${TARGETARCH:-amd64}
-        TARGETVARIANT: ${TARGETVARIANT:-}
     image: madara_arm:humble
     container_name: madara-sim
     environment:
