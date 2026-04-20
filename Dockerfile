@@ -1,24 +1,15 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # Madara 6DoF Arm — Docker image
-# Base: osrf/ros:humble-desktop-full (Ubuntu 22.04 + ROS2 Humble + Gazebo Fortress)
+# Base: ros:humble-ros-base-jammy (Ubuntu 22.04 + ROS2 Humble)
+#       ↑ Official multi-arch image: linux/amd64 + linux/arm64/v8
+#       osrf/ros:humble-desktop-full is amd64-only — unusable on RPi 5
 # Camera: camera_ros (libcamera backend) — correct for Raspberry Pi 5 + IMX219
-# Arch:   auto-detected via BuildKit TARGETPLATFORM (amd64 / arm64 / arm/v7)
+# Arch:   auto-selected from manifest — no flags needed
 # ═══════════════════════════════════════════════════════════════════════════
-
-# BuildKit automatically sets TARGETPLATFORM to the host's native arch
-# (or to whatever --platform flag you pass at build time).
-# Declaring it here promotes it to a FROM-scoped ARG.
-ARG TARGETPLATFORM
-ARG TARGETARCH
-ARG TARGETVARIANT
-
-FROM --platform=${TARGETPLATFORM} osrf/ros:humble-desktop-full
-
-# Re-declare after FROM so later RUN steps can read them if needed
-ARG TARGETARCH
-ARG TARGETVARIANT
+FROM ros:humble-ros-base-jammy
 
 # ── System + ROS packages ──────────────────────────────────────────────────
+# RViz2 and Gazebo Fortress added explicitly since we're not on desktop-full
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-colcon-common-extensions \
     python3-rosdep \
@@ -27,10 +18,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-humble-ros2-controllers \
     ros-humble-ign-ros2-control \
     ros-humble-moveit \
+    ros-humble-rviz2 \
     ros-humble-camera-ros \
     ros-humble-image-transport \
     ros-humble-image-transport-plugins \
     ros-humble-compressed-image-transport \
+    ros-humble-rqt \
+    ros-humble-rqt-common-plugins \
     libcamera-dev \
     libcamera-tools \
     setserial \
@@ -43,7 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # ── rosdep init ────────────────────────────────────────────────────────────
 RUN apt-get update && \
     rosdep init 2>/dev/null || true && \
-    rosdep update
+    rosdep update && \
+    rm -rf /var/lib/apt/lists/*
 
 # ── Group memberships ──────────────────────────────────────────────────────
 # dialout → UART access (/dev/ttyAMA0, /dev/ttyUSB0)
