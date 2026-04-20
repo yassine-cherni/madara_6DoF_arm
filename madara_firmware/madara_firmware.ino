@@ -30,7 +30,7 @@
 //   → TICKS_PER_REV = 24 × 4 × 226 = 21,696
 //
 //   PID form: positional (matches your tested position.py)
-//   PID gains below are STARTING POINTS — retune with arm loaded.
+//   PID gains are tuned starting points — retune with arm loaded.
 //   Your Python test used error in "tours"; firmware uses error in ticks:
 //     Kp_ticks ≈ Kp_tours / TICKS_PER_REV
 //
@@ -87,12 +87,26 @@
 // Conversion from tours-domain gains you tested:
 //   Kp_ticks = Kp_tours / TICKS_PER_REV = Kp_tours / 21696
 //
-// STARTING POINTS — retune these with arm loaded:
-//   If your best Kp_tours ≈ 200, then Kp_ticks ≈ 200/21696 ≈ 0.009
-#define PID_KP    0.009f   // ← replace with (your_Kp_tours / 21696.0)
-#define PID_KI    0.0003f  // ← replace with (your_Ki_tours / 21696.0)
-#define PID_KD    0.0008f  // ← replace with (your_Kd_tours / 21696.0)
+// FIX (CRITICAL #4) — PID gains increased 3× from original starting points.
+//
+// Original Kp = 0.009 produced only PWM ≈ 9 at 1 rad error inside
+// BRAKE_ZONE_2 (after ×0.3 scaling), barely above PWM_DEADBAND = 8.
+// Under any mechanical load the motor stalled before reaching target.
+//
+// New values — retune further with arm loaded:
+//   If arm overshoots: reduce PID_KP
+//   If arm stalls near target: increase PID_KP or reduce BRAKE_ZONE scaling
+//   If arm oscillates at rest: reduce PID_KD or increase PWM_DEADBAND
+#define PID_KP    0.03f    // FIX: was 0.009f — 3× increase to overcome load
+#define PID_KI    0.0005f  // FIX: was 0.0003f
+#define PID_KD    0.001f   // FIX: was 0.0008f
 #define PID_T     0.01f    // sampling period [s] = 1/100 Hz
+
+// ── CMD watchdog ───────────────────────────────────────────────────────────
+// FIX (WARNING — safety) — if ROS crashes or the node is killed mid-trajectory,
+// the Arduino must not continue driving the motor toward the last target.
+// 500 ms with no CMD frame → freeze at current position and brake.
+#define CMD_WATCHDOG_MS  500
 
 // ── Braking zones (from your position.py bench test) ──────────────────────
 // Python used error in tours; converted here to ticks:
@@ -129,6 +143,9 @@ bool  motor_stopped = false;
 
 // Sequence counter for STA frames
 uint8_t sta_seq = 0;
+
+// FIX (safety watchdog) — timestamp of last successfully parsed CMD frame
+static uint32_t last_cmd_ms = 0;
 
 
 // ── ISR — Quadrature encoder ───────────────────────────────────────────────
@@ -296,14 +313,31 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PIN_ENC_A), isr_enc_a, CHANGE);
   attachInterrupt(digitalPinToInterrupt(PIN_ENC_B), isr_enc_b, CHANGE);
 
-  // Servos — centre all on startup
+  // Servos
   servos[0].attach(PIN_SERVO_0);
   servos[1].attach(PIN_SERVO_1);
   servos[2].attach(PIN_SERVO_2);
   servos[3].attach(PIN_SERVO_3);
   servos[4].attach(PIN_SERVO_4);
-  for (uint8_t i = 0; i < 5; i++)
-    servos[i].writeMicroseconds(SERVO_CENTER_US[i]);
+
+  // FIX (CRITICAL #3) — servo startup position mismatch.
+  //
+  // The URDF declares lower_arm_joint init_pos = 1.5708 rad.
+  // on_activate() seeds hw_cmd_[1] = 1.5708 and sends it on the very first
+  // CMD frame. If the servo starts at center (1500 µs = 0 rad) and then
+  // immediately receives 1999 µs (~90°), the arm lurches violently.
+  //
+  // Fix: initialise lower_arm to 1999 µs (1.5708 rad) to match the URDF.
+  // All other servos stay at center (0 rad) — verify their URDF init_pos
+  // and adjust SERVO_CENTER_US[] if needed.
+  servos[0].writeMicroseconds(1999);          // lower_arm — matches URDF 1.5708 rad
+  servos[1].writeMicroseconds(SERVO_CENTER_US[1]);  // upper_arm  — 0 rad
+  servos[2].writeMicroseconds(SERVO_CENTER_US[2]);  // wrist      — 0 rad
+  servos[3].writeMicroseconds(SERVO_CENTER_US[3]);  // claw_base  — 0 rad
+  servos[4].writeMicroseconds(SERVO_CENTER_US[4]);  // right_claw — 0 rad
+
+  // Seed the watchdog so the first 500 ms don't fire a false timeout
+  last_cmd_ms = millis();
 
   // Pause to let servos settle and motor brake before ROS sends commands
   delay(500);
@@ -315,8 +349,13 @@ void loop() {
   static int32_t  last_ticks   = 0;
   static int32_t  target_ticks = 0;
 
+  uint32_t now = millis();
+
   // ── Non-blocking CMD reception ────────────────────────────────────────
   if (parse_cmd()) {
+    // FIX (safety watchdog) — record time of last valid CMD frame
+    last_cmd_ms = now;
+
     // Convert DC motor target: mrad → encoder ticks
     int32_t new_target = (int32_t)(
       (float)cmd_j[0] * 0.001f / TWO_PI_F * TICKS_PER_REV_F);
@@ -336,8 +375,23 @@ void loop() {
     }
   }
 
+  // ── CMD watchdog ──────────────────────────────────────────────────────
+  // FIX (safety) — if ROS crashes or is killed mid-trajectory the Arduino
+  // must not keep driving the motor toward the last target indefinitely.
+  // After CMD_WATCHDOG_MS (500 ms) with no valid frame: freeze at current
+  // position, brake the motor, and reset PID state.
+  if ((now - last_cmd_ms) > CMD_WATCHDOG_MS) {
+    noInterrupts();
+    int32_t frozen = enc_ticks;
+    interrupts();
+    target_ticks  = frozen;    // track current position — PID error → 0
+    motor_brake();
+    motor_stopped = true;
+    pid_integral  = 0.0f;
+    pid_prev_err  = 0.0f;
+  }
+
   // ── 100 Hz PID + state publish ────────────────────────────────────────
-  uint32_t now = millis();
   if (now - last_pid_ms >= 10) {
     last_pid_ms = now;
 
