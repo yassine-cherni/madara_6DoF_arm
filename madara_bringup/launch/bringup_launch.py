@@ -16,6 +16,7 @@ from launch.event_handlers import OnProcessExit
 from launch.substitutions import LaunchConfiguration, Command
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue   # ← fix
 
 
 def generate_launch_description():
@@ -45,9 +46,13 @@ def generate_launch_description():
     video_device = LaunchConfiguration('video_device')
 
     # ── Robot description ────────────────────────────────────────────────────
-    robot_description = Command([
-        'xacro ', urdf_path, ' serial_port:=', serial_port
-    ])
+    # ParameterValue(value_type=str) required on Humble — without it the
+    # node parameter parser tries to interpret the xacro output as YAML
+    # and fails with "Unable to parse the value of parameter robot_description"
+    robot_description = ParameterValue(
+        Command(['xacro ', urdf_path, ' serial_port:=', serial_port]),
+        value_type=str
+    )
 
     # ── Nodes ────────────────────────────────────────────────────────────────
     rsp_node = Node(
@@ -102,8 +107,6 @@ def generate_launch_description():
             'output_encoding': 'rgb8',   # what OpenCV/ArUco nodes expect
         }],
         remappings=[
-            # Lift topics out of /camera namespace so they match
-            # what gz_launch and the rest of the stack expect
             ('~/image_raw',   '/camera/image_raw'),
             ('~/camera_info', '/camera/camera_info'),
         ],
