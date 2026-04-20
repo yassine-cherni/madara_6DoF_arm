@@ -53,11 +53,19 @@ MadaraUARTSystem::on_init(const hardware_interface::HardwareInfo & info)
   };
 
   // Default /dev/ttyACM0 — Arduino Uno on Raspberry Pi 5.
-  // Override via launch arg:  serial_port:=/dev/ttyUSB0
-  serial_port_     = get_param("serial_port",                  "/dev/ttyACM0");
-  baud_rate_       = std::stoi(get_param("baud_rate",           "115200"));
+// AFTER — exceptions caught, on_init returns ERROR gracefully
+serial_port_ = get_param("serial_port", "/dev/ttyACM0");
+try {
+  baud_rate_       = std::stoi(get_param("baud_rate",                "115200"));
   ticks_per_rev_   = std::stod(get_param("dc_encoder_ticks_per_rev", "21696"));
-  uart_timeout_ms_ = std::stoi(get_param("uart_timeout_ms",    "50"));
+  uart_timeout_ms_ = std::stoi(get_param("uart_timeout_ms",          "50"));
+} catch (const std::exception & e) {
+  RCLCPP_FATAL(rclcpp::get_logger("MadaraUARTSystem"),
+    "Failed to parse hardware parameters from URDF: %s — "
+    "check baud_rate, dc_encoder_ticks_per_rev, uart_timeout_ms are valid numbers.",
+    e.what());
+  return hardware_interface::CallbackReturn::ERROR;
+}
 
   RCLCPP_INFO(rclcpp::get_logger("MadaraUARTSystem"),
     "Params — port: %s  baud: %d  ticks/rev: %.0f  timeout: %d ms",
