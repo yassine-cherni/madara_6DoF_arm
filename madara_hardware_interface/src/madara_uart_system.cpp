@@ -53,19 +53,28 @@ MadaraUARTSystem::on_init(const hardware_interface::HardwareInfo & info)
   };
 
   // Default /dev/ttyACM0 — Arduino Uno on Raspberry Pi 5.
-// AFTER — exceptions caught, on_init returns ERROR gracefully
-serial_port_ = get_param("serial_port", "/dev/ttyACM0");
-try {
-  baud_rate_       = std::stoi(get_param("baud_rate",                "115200"));
-  ticks_per_rev_   = std::stod(get_param("dc_encoder_ticks_per_rev", "21696"));
-  uart_timeout_ms_ = std::stoi(get_param("uart_timeout_ms",          "50"));
-} catch (const std::exception & e) {
-  RCLCPP_FATAL(rclcpp::get_logger("MadaraUARTSystem"),
-    "Failed to parse hardware parameters from URDF: %s — "
-    "check baud_rate, dc_encoder_ticks_per_rev, uart_timeout_ms are valid numbers.",
-    e.what());
-  return hardware_interface::CallbackReturn::ERROR;
-}
+  serial_port_ = get_param("serial_port", "/dev/ttyACM0");
+  try {
+    baud_rate_       = std::stoi(get_param("baud_rate",                "115200"));
+    ticks_per_rev_   = std::stod(get_param("dc_encoder_ticks_per_rev", "21696"));
+    // FIX (WARNING) — uart_timeout_ms default reduced from 50 ms → 8 ms.
+    //
+    // The Arduino sends STA frames at 100 Hz (one every 10 ms). With the
+    // old default of 50 ms, a single late/missing frame caused recv_sta_frame()
+    // to block for 50 ms — five full 100 Hz control cycles. This caused the
+    // controller manager to fall behind real time and triggered late-cycle
+    // warnings. 8 ms = one cycle minus 2 ms margin. A timeout holds the last
+    // known encoder state, which is already handled gracefully by the
+    // WARN_THROTTLE log below. Override via <param name="uart_timeout_ms">8</param>
+    // in the URDF hardware block (already the recommended value).
+    uart_timeout_ms_ = std::stoi(get_param("uart_timeout_ms", "8"));
+  } catch (const std::exception & e) {
+    RCLCPP_FATAL(rclcpp::get_logger("MadaraUARTSystem"),
+      "Failed to parse hardware parameters from URDF: %s — "
+      "check baud_rate, dc_encoder_ticks_per_rev, uart_timeout_ms are valid numbers.",
+      e.what());
+    return hardware_interface::CallbackReturn::ERROR;
+  }
 
   RCLCPP_INFO(rclcpp::get_logger("MadaraUARTSystem"),
     "Params — port: %s  baud: %d  ticks/rev: %.0f  timeout: %d ms",
@@ -200,7 +209,9 @@ MadaraUARTSystem::read(const rclcpp::Time &, const rclcpp::Duration &)
       "Missed/invalid STA frame — holding last encoder state.");
   }
 
-  // Mimic joint: left_claw mirrors right_claw, no separate actuator
+  // FIX (WARNING) — mimic joint state update belongs in read(), not write().
+  // Semantically: read() is where all state is refreshed from hardware.
+  // The redundant copy that was previously in write() has been removed.
   hw_pos_[6] = -hw_pos_[5];
   // hw_vel_[6] stays 0.0
 
@@ -220,6 +231,11 @@ MadaraUARTSystem::write(const rclcpp::Time &, const rclcpp::Duration &)
   // Mirror mimic joint command before sending
   hw_cmd_[6] = -hw_cmd_[5];
 
+  // INTENTIONAL: if the serial port is closed (fd_ < 0, caught above) or
+  // send_cmd_frame() fails here, we return ERROR immediately without updating
+  // the servo echo state below. This correctly freezes servo state at the
+  // last successfully sent value rather than advancing it on a failed write.
+  // Do not move the echo loop above this early return.
   if (!send_cmd_frame()) {
     RCLCPP_WARN_THROTTLE(rclcpp::get_logger("MadaraUARTSystem"),
       throttle_clock, 1000, "CMD frame write failed.");
@@ -228,7 +244,8 @@ MadaraUARTSystem::write(const rclcpp::Time &, const rclcpp::Duration &)
 
   // Servo state = echo of last command (open-loop, joints 1-6).
   // hw_vel_[1..6] stays 0.0.
-  for (std::size_t i = 1; i < NUM_JOINTS; ++i) {
+  // NOTE: hw_pos_[6] (mimic joint) is updated in read(), not here.
+  for (std::size_t i = 1; i < NUM_JOINTS - 1; ++i) {   // joints 1-5 only
     hw_pos_[i] = hw_cmd_[i];
   }
 
