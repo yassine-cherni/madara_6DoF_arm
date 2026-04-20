@@ -5,7 +5,7 @@
 
 #include <fcntl.h>
 #include <poll.h>
-#include <sys/ioctl.h>   // FIONREAD — needed for buffer-drain in recv_sta_frame
+#include <sys/ioctl.h>   // FIONREAD — buffer-size query for drain in recv_sta_frame
 #include <termios.h>
 #include <unistd.h>
 #include <cmath>
@@ -52,8 +52,8 @@ MadaraUARTSystem::on_init(const hardware_interface::HardwareInfo & info)
     return (it != info_.hardware_parameters.end()) ? it->second : def;
   };
 
-  // Default to /dev/ttyACM0 — matches Arduino Uno on Raspberry Pi 5.
-  // Override via xacro arg: serial_port:=/dev/ttyUSB0
+  // Default /dev/ttyACM0 — Arduino Uno on Raspberry Pi 5.
+  // Override via launch arg:  serial_port:=/dev/ttyUSB0
   serial_port_     = get_param("serial_port",                  "/dev/ttyACM0");
   baud_rate_       = std::stoi(get_param("baud_rate",           "115200"));
   ticks_per_rev_   = std::stod(get_param("dc_encoder_ticks_per_rev", "21696"));
@@ -106,9 +106,9 @@ MadaraUARTSystem::export_state_interfaces()
   si.emplace_back(joint_names_[0], hardware_interface::HW_IF_POSITION, &hw_pos_[0]);
   si.emplace_back(joint_names_[0], hardware_interface::HW_IF_VELOCITY,  &hw_vel_[0]);
 
-  // Joints 1-6 (servos + mimic): position + velocity exported for all.
-  // JointTrajectoryController on Humble requires velocity state from every
-  // joint it manages; servo joints report 0.0 rad/s (open-loop).
+  // Joints 1-6 (servos + mimic): position + velocity for all.
+  // JointTrajectoryController on Humble requires velocity from every
+  // joint it manages. Servo joints report 0.0 rad/s (open-loop).
   for (std::size_t i = 1; i < NUM_JOINTS; ++i) {
     si.emplace_back(joint_names_[i], hardware_interface::HW_IF_POSITION, &hw_pos_[i]);
     si.emplace_back(joint_names_[i], hardware_interface::HW_IF_VELOCITY,  &hw_vel_[i]);
@@ -132,6 +132,17 @@ MadaraUARTSystem::export_command_interfaces()
 
 // ═══════════════════════════════════════════════════════════════════════════
 // on_activate
+//
+// IMPORTANT: Do NOT call usleep() / sleep() / any blocking wait here or
+// inside open_serial(). on_activate() runs in the ros2_control lifecycle
+// thread. Blocking it for more than ~100 ms causes an internal watchdog
+// to fire SIGABRT (exit code -6, process dies immediately).
+//
+// The Arduino bootloader boot-wait is handled passively:
+//   - open_serial() flushes the RX buffer twice (before and after termios)
+//   - recv_sta_frame() drains any residual bootloader garbage each cycle
+//     via the FIONREAD drain at the top of the function
+// The first 1-2 seconds of throttled CRC warnings are expected and harmless.
 // ═══════════════════════════════════════════════════════════════════════════
 hardware_interface::CallbackReturn
 MadaraUARTSystem::on_activate(const rclcpp_lifecycle::State &)
@@ -171,8 +182,8 @@ MadaraUARTSystem::read(const rclcpp::Time &, const rclcpp::Duration &)
 {
   if (fd_ < 0) return hardware_interface::return_type::ERROR;
 
-  // Persistent steady clock — avoids re-creating it every call, which
-  // would reset the throttle counter and spam the log every cycle.
+  // Persistent steady clock — re-creating it each call resets the throttle
+  // counter to t=0 and spams the log on every cycle.
   static rclcpp::Clock throttle_clock(RCL_STEADY_TIME);
 
   if (!recv_sta_frame()) {
@@ -181,7 +192,7 @@ MadaraUARTSystem::read(const rclcpp::Time &, const rclcpp::Duration &)
       "Missed/invalid STA frame — holding last encoder state.");
   }
 
-  // Mimic joint: left_claw mirrors right_claw with no separate actuator
+  // Mimic joint: left_claw mirrors right_claw, no separate actuator
   hw_pos_[6] = -hw_pos_[5];
   // hw_vel_[6] stays 0.0
 
@@ -219,24 +230,24 @@ MadaraUARTSystem::write(const rclcpp::Time &, const rclcpp::Duration &)
 // ═══════════════════════════════════════════════════════════════════════════
 // open_serial
 //
-// FIX 1 — HUPCL disabled:
-//   By default Linux asserts/de-asserts DTR when the port is opened or
-//   closed. On an Arduino Uno, a DTR toggle triggers the hardware reset
-//   line. This causes the bootloader to run for ~1.5 s every time the
-//   hardware interface activates, flooding the RX buffer with garbage
-//   and permanently desynchronising the frame parser.
-//   Setting ~HUPCL stops the *next* open/close from toggling DTR.
-//
-// FIX 2 — 2 s boot wait + double flush:
-//   The very first open() has already toggled DTR before we can clear
-//   HUPCL. We wait 2 s (bootloader window) then flush twice so that
-//   recv_sta_frame() starts with a clean buffer containing only fresh
-//   STA frames.
+// FIX — HUPCL disabled:
+//   Linux asserts/de-asserts DTR when a serial port is opened or closed.
+//   On Arduino Uno, a DTR edge triggers the hardware reset line, causing
+//   the bootloader to run for ~1.5 s and flood the RX buffer with garbage.
+//   Setting ~HUPCL stops every subsequent open/close from resetting the
+//   Arduino. The very first open() already triggered the reset before we
+//   can clear HUPCL, so we flush twice — once immediately after open()
+//   and once after tcsetattr is applied — to discard bootloader output.
+//   recv_sta_frame()'s FIONREAD drain handles any residual garbage that
+//   arrives in the first ~1 second of operation.
 // ═══════════════════════════════════════════════════════════════════════════
 bool MadaraUARTSystem::open_serial()
 {
   fd_ = ::open(serial_port_.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK);
   if (fd_ < 0) { return false; }
+
+  // First flush: discard whatever the DTR reset sent before we got here
+  ::tcflush(fd_, TCIOFLUSH);
 
   // Switch to blocking I/O — poll() handles timeouts explicitly
   int flags = ::fcntl(fd_, F_GETFL, 0);
@@ -264,7 +275,7 @@ bool MadaraUARTSystem::open_serial()
   tty.c_cflag |=  CLOCAL | CREAD;
   tty.c_cflag &= ~(PARENB | CSTOPB | CRTSCTS);
 
-  // FIX 1: disable HUPCL so future open/close cycles do NOT reset the Arduino
+  // Disable HUPCL: prevents DTR toggle on future open/close → no Arduino reset
   tty.c_cflag &= ~HUPCL;
 
   tty.c_iflag  =  IGNBRK;
@@ -276,20 +287,8 @@ bool MadaraUARTSystem::open_serial()
 
   ::tcsetattr(fd_, TCSANOW, &tty);
 
-  // FIX 2: flush once immediately, then wait for the Arduino bootloader to
-  // finish (~1.5 s), then flush again to discard all bootloader output.
-  // Without this wait the frame parser starts mid-bootloader-garbage and
-  // never recovers sync during the first few seconds of operation.
+  // Second flush: discard any bootloader bytes that arrived during termios setup
   ::tcflush(fd_, TCIOFLUSH);
-
-  RCLCPP_INFO(rclcpp::get_logger("MadaraUARTSystem"),
-    "Waiting 2 s for Arduino bootloader to finish...");
-  usleep(2000000);   // 2 000 000 µs = 2 s
-
-  ::tcflush(fd_, TCIOFLUSH);   // discard everything the bootloader sent
-
-  RCLCPP_INFO(rclcpp::get_logger("MadaraUARTSystem"),
-    "Arduino ready. RX buffer flushed.");
 
   return true;
 }
@@ -373,16 +372,15 @@ bool MadaraUARTSystem::send_cmd_frame()
 //   [10]    crc8          CRC-8/SMBUS over bytes [2..9]
 //
 // FIX — buffer drain before parsing:
-//   The Arduino sends 11 bytes every 10 ms (100 Hz).  When the Pi is
-//   briefly busy (controller spawning, RViz init, etc.) the kernel UART
-//   buffer accumulates multiple complete frames.  Reading the oldest
-//   queued frame means the byte we treat as CRC is actually the SOF byte
-//   of the *next* frame — which is exactly the 0x5A / 0x53 / 0xA5 CRC
-//   mismatch pattern visible in the logs.
+//   The Arduino sends 11 bytes every 10 ms (100 Hz). When the Pi is
+//   briefly busy the kernel UART buffer accumulates multiple complete
+//   frames. Reading the oldest queued frame puts the CRC byte at the
+//   position occupied by the SOF bytes of the next frame — producing
+//   the exact 0x5A / 0x53 / 0xA5 CRC mismatch pattern in the logs.
 //
-//   Solution: before starting the SOF1 scan, use FIONREAD to find how
-//   many bytes are buffered.  Discard all but one frame's worth so we
-//   always parse the freshest available frame.
+//   Fix: use FIONREAD to check buffer depth and discard all but one
+//   frame's worth before the SOF1 scan, so we always parse the freshest
+//   available frame.
 // ═══════════════════════════════════════════════════════════════════════════
 bool MadaraUARTSystem::recv_sta_frame()
 {
@@ -427,7 +425,7 @@ bool MadaraUARTSystem::recv_sta_frame()
   if (rest[0] != PROTO_TYPE_STA) return false;
 
   // ── CRC check ────────────────────────────────────────────────────
-  uint8_t expected = crc8(rest, 8);   // bytes [2..9] of full frame
+  uint8_t expected = crc8(rest, 8);
   if (rest[8] != expected) {
     static rclcpp::Clock crc_clock(RCL_STEADY_TIME);
     RCLCPP_WARN_THROTTLE(rclcpp::get_logger("MadaraUARTSystem"),
@@ -437,8 +435,8 @@ bool MadaraUARTSystem::recv_sta_frame()
   }
 
   // ── Decode encoder → position [rad] ──────────────────────────────
-  // top_plate_joint is continuous — no wrapping, raw ticks are valid
-  // for any number of full revolutions in either direction.
+  // top_plate_joint is continuous — raw ticks are valid across any
+  // number of full revolutions in either direction.
   int32_t ticks = 0;
   std::memcpy(&ticks, &rest[2], 4);
   hw_pos_[0] = static_cast<double>(ticks) / ticks_per_rev_ * (2.0 * M_PI);
