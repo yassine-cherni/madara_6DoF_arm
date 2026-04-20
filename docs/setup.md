@@ -22,7 +22,7 @@ xhost +local:docker
 ## Step 2 — Clone the project
 
 ```bash
-git clone https://github.com/<your-username>/madara_6DoF_arm.git
+git clone https://github.com/yassine-cherni/madara_6DoF_arm.git
 cd madara_6DoF_arm
 ```
 
@@ -34,7 +34,12 @@ cd madara_6DoF_arm
 docker compose build
 ```
 
-Expected: downloads `osrf/ros:humble-desktop-full` (~4 GB first time), installs packages including `camera_ros` and `libcamera`.
+The base image is `ros:humble-ros-base-jammy` from the official ROS Docker library.
+It ships proper `linux/amd64` and `linux/arm64` manifests, so Docker automatically
+pulls the correct variant for your host — no `--platform` flags or env vars needed.
+
+> **First build time:** ~15–25 min on a Pi 5 (downloads ~245 MB base + installs ROS packages).  
+> Subsequent builds use the layer cache and are much faster.
 
 ---
 
@@ -85,7 +90,8 @@ If `libcamera-hello --list-cameras` shows no cameras, check the host:
 # On the Pi host (not inside Docker)
 rpicam-hello --list-cameras
 ```
-If it works on host but not in Docker, verify `/dev/dma_heap/` is visible inside the container — `ls /dev/dma_heap/` should return two entries.
+If it works on host but not in Docker, verify `/dev/dma_heap/` is visible inside
+the container — `ls /dev/dma_heap/` should return two entries.
 
 ---
 
@@ -97,7 +103,8 @@ If it works on host but not in Docker, verify `/dev/dma_heap/` is visible inside
 ros2 launch madara_moveit_config demo.launch.py
 ```
 
-Expected: RViz opens with MoveIt2 MotionPlanning panel. Camera Feed panel shows "No data" — this is normal in mock mode.
+Expected: RViz opens with MoveIt2 MotionPlanning panel. Camera Feed panel shows
+"No data" — this is normal in mock mode.
 
 ---
 
@@ -135,7 +142,8 @@ source install/setup.bash
 ros2 launch madara_moveit_config moveit_rviz.launch.py
 ```
 
-Expected: RViz opens with Camera Feed panel showing live RPi Camera v2 feed alongside the arm model and MoveIt2 MotionPlanning panel.
+Expected: RViz opens with Camera Feed panel showing live RPi Camera v2 feed
+alongside the arm model and MoveIt2 MotionPlanning panel.
 
 To launch arm only (no camera):
 ```bash
@@ -201,7 +209,17 @@ source install/setup.bash
 
 ---
 
-## Troubleshooting camera
+## Troubleshooting
+
+### Architecture / Docker
+
+| Symptom | Fix |
+|---|---|
+| `exec format error` during build | Wrong arch image cached — run `docker system prune -af --volumes` then rebuild |
+| Build pulls amd64 on arm64 host | Base image had no arm64 manifest — fixed by switching to `ros:humble-ros-base-jammy` |
+| `Cannot connect to Docker daemon` | Run `sudo systemctl start docker` |
+
+### Camera
 
 | Symptom | Fix |
 |---|---|
