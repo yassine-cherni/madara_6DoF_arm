@@ -12,8 +12,6 @@ A 6-DOF robotic arm  **ROS 2 Humble · MoveIt2 · Ignition Gazebo Fortress · Ra
   <img src="https://img.shields.io/badge/license-MIT-yellow"/>
 </p>
 
----
-
 ## Hardware
 
 | Component | Part |
@@ -21,11 +19,9 @@ A 6-DOF robotic arm  **ROS 2 Humble · MoveIt2 · Ignition Gazebo Fortress · Ra
 | SBC | Raspberry Pi 5 |
 | Microcontroller | Arduino Uno |
 | DC Motor (base) | JGA25-371 12V 18RPM + quadrature encoder |
-| Servos (×5) | MG966R |
+| Servos (×5) | MG996R |
 | Motor driver | L298N H-Bridge |
 | Camera | Raspberry Pi Camera Module v2 (IMX219) |
-
----
 
 ## Photos
 
@@ -35,39 +31,40 @@ A 6-DOF robotic arm  **ROS 2 Humble · MoveIt2 · Ignition Gazebo Fortress · Ra
 <p align="center"><em>Physical build</em></p>
 
 <p align="center">
-  <img src="docs/images/IMG2.jpg" alt="Simulation in RViz2 + Ignition Gazebo" width="600"/>
+  <img src="docs/images/IMG2.jpg" alt="Hardware Setup" width="600"/>
 </p>
 <p align="center"><em>Hardware Setup</em></p>
 
----
+<p align="center">
+  <img src="docs/images/IMG3.png" alt="System Overview" width="600"/>
+</p>
+<p align="center"><em>System Overview</em></p>
 
 ## Quick Start
 
 ```bash
-# 1 — Prerequisites
+# 1 Prerequisites
 curl -fsSL https://get.docker.com | sh && sudo usermod -aG docker $USER
 sudo apt install -y x11-xserver-utils
 
-# 2 — Clone
+# 2 Clone
 git clone https://github.com/yassine-cherni/madara_6DoF_arm.git
 cd madara_6DoF_arm
 
-# 3 — Build & start
+# 3 Build & start
 xhost +local:docker
 docker compose build
 docker compose up -d madara
 docker exec -it madara bash
 
-# 4 — First time only (inside container)
+# 4 First time only (inside container)
 cd /madara_ws
 apt-get update && rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install && source install/setup.bash
 ```
 
 > **Build time:** ~15–25 min first run on Pi 5. Layer cache used on subsequent builds.
-> Base image `ros:humble-ros-base-jammy` ships proper `linux/amd64` + `linux/arm64` manifests — no `--platform` flags needed.
-
----
+> Base image `ros:humble-ros-base-jammy` ships proper `linux/amd64` + `linux/arm64` manifests no `--platform` flags needed.
 
 ## Usage
 
@@ -79,8 +76,6 @@ colcon build --symlink-install && source install/setup.bash
 | Real hardware (arm + camera) | `ros2 launch madara_bringup bringup_launch.py serial_port:=/dev/ttyACM0` |
 | Real hardware (arm only) | `ros2 launch madara_bringup bringup_launch.py start_camera:=false` |
 | MoveIt2 + RViz (after bringup) | `ros2 launch madara_moveit_config moveit_rviz.launch.py` |
-
----
 
 ## Package Overview
 
@@ -94,13 +89,11 @@ colcon build --symlink-install && source install/setup.bash
 | `madara_gazebo` | World, plugins, ROS↔Gazebo bridge |
 | `camera_ros` | RPi Camera v2 node (libcamera) |
 
----
-
 ## Docker Notes
 
 | | Detail |
 |---|---|
-| Base image | `ros:humble-ros-base-jammy` — multi-arch, installs MoveIt2, ros2_control, RViz2, Gazebo Fortress, libcamera |
+| Base image | `ros:humble-ros-base-jammy` multi-arch, installs MoveIt2, ros2_control, RViz2, Gazebo Fortress, libcamera |
 | Services | `madara` (dev / real HW) · `madara-sim` (sim profile, auto-launches `gz_launch.py`) |
 | Device access | `privileged: true` + `/dev` volume required for `/dev/dma_heap/` (libcamera DMA on RPi 5) |
 | Build persistence | `madara_ws_build` named volume preserves `colcon` build across container restarts |
@@ -108,23 +101,19 @@ colcon build --symlink-install && source install/setup.bash
 
 > **`privileged` note:** needed for libcamera DMA heap on RPi 5. For production, replace with fine-grained `devices:` entries once `/dev/dma_heap/` paths are confirmed.
 
----
-
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `exec format error` | Wrong arch cached — `docker system prune -af --volumes` then rebuild |
+| `exec format error` | Wrong arch cached `docker system prune -af --volumes` then rebuild |
 | No cameras in container | Check host: `rpicam-hello --list-cameras`; verify `ls /dev/dma_heap/` inside container |
 | `failed to allocate buffers` | Add `dtoverlay=vc4-kms-v3d,cma-512` to `/boot/firmware/config.txt` |
-| `Segfault` on Ctrl-C | Known Humble MoveIt2 shutdown bug — harmless |
+| `Segfault` on Ctrl-C | Known Humble MoveIt2 shutdown bug harmless |
 | `Camera Feed: No data` | Expected in `demo.launch.py` (mock mode) |
-
----
 
 ## TODO
 
-> Each item is a separate planned extension — independent branch or sub-package when implemented.
+> Each item is a separate planned extension independent branch or sub-package when implemented.
 
 ### 🔲 RTEMS Support
 Real-time joint control on an RTEMS target (RP2350 / Hazard3 RISC-V core).
@@ -132,19 +121,19 @@ Real-time joint control on an RTEMS target (RP2350 / Hazard3 RISC-V core).
 - [ ] Serial/SPI bridge to the ROS 2 hardware interface on Pi 5
 - [ ] CI: RTEMS RSB cross-compiler (`rtems-riscv`) + OpenOCD flash/debug
 
-### 🔲 Pixi — ROS 2 Jazzy & Kilted
+### 🔲 Pixi ROS 2 Jazzy & Kilted
 Native host install via [Pixi](https://prefix.dev/) alongside Docker.
 - [ ] `pixi.toml` with `[feature.jazzy]` + `[feature.kilted]` environments (robostack channels)
 - [ ] MoveIt2 Jazzy API migration
 - [ ] CI matrix: `humble` (Docker) | `jazzy` (Pixi) | `kilted` (Pixi nightly)
 
 ### 🔲 Zenoh-pico + Zephyr
-DDS-native comms on the microcontroller via [zenoh-pico](https://github.com/eclipse-zenoh/zenoh-pico) on Zephyr RTOS — replaces serial bridge.
+DDS-native comms on the microcontroller via [zenoh-pico](https://github.com/eclipse-zenoh/zenoh-pico) on Zephyr RTOS replaces serial bridge.
 - [ ] Zephyr workspace (`west`) for RP2040/RP2350 with zenoh-pico module
 - [ ] Publish `/joint_states`, subscribe `/joint_commands` over Zenoh (UART or UDP)
 - [ ] Bridge to ROS 2 graph via `zenoh-bridge-ros2dds` on Pi 5
 
-### 🔲 ros2_control — Hardware Interface Refactor
+### 🔲 ros2_control Hardware Interface Refactor
 Harden the hardware interface and close the control loop.
 - [ ] Lifecycle-managed `SystemInterface` with `HW_IF_POSITION` + `HW_IF_VELOCITY` for all 6 DOF
 - [ ] `HandSystemInterface` for the gripper (1 DOF)
@@ -159,10 +148,17 @@ Learn a manipulation policy on top of the MoveIt2 stack.
 - [ ] RL fine-tuning (sim-to-real) using Gazebo as training environment
 - [ ] Evaluate with pick-and-place benchmark (ArUco marker target)
 
----
+### 🔲 Custom Linux Distribution (MadaraOS)
+Minimal Yocto-based Linux image purpose-built for the Madara arm stack on Raspberry Pi 5.
+- [ ] Yocto `meta-madara` layer: machine config for `raspberrypi5`, kernel 6.6 LTS + `PREEMPT_RT` patch
+- [ ] Minimal image recipe: `madara-image-minimal` systemd, Docker Engine, no desktop
+- [ ] ROS 2 Humble baked in via `meta-ros` (robostack Yocto layer), colcon workspace pre-built
+- [ ] `libcamera` + V4L2 drivers included; DMA heap `/dev/dma_heap/` available at boot
+- [ ] zenoh-pico native recipe (`zenoh-pico_%.bb`) cross-compiled for `aarch64`
+- [ ] Systemd service units: `madara-bringup.service` auto-starts hardware interface on boot
+- [ ] CI: `kas` build matrix targeting `raspberrypi5` → produces flashable `.wic.bz2` image
+- [ ] OTA update support via [RAUC](https://rauc.io/) with A/B partition scheme
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
-
----
+MIT see [LICENSE](LICENSE).
